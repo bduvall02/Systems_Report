@@ -26,7 +26,7 @@ Import-Module netappdocs
 
 #Login information
 [string]$username = "DOMAIN\ACCOUNT"
-$pass = cat D:\Scripts\password.txt | ConvertTo-SecureString
+$pass = Get-Content D:\Scripts\password.txt | ConvertTo-SecureString
 $mycred = new-object -TypeName System.Management.Automation.PSCredential -ArgumentList $username,$pass
 #########################################################################
 #### If New Password needs to be generated - Do the following
@@ -51,14 +51,14 @@ if (!(Test-Path $folder))
 
 
 #Count of Total Clusters in All_Systems.txt file
-$total = $(Get-Content "$($PSScriptRoot)\All_Systems.txt" | ? {$_ -ne ""}).count
+$total = $(Get-Content "$($PSScriptRoot)\All_Systems.txt" | Where-Object {$_ -ne ""}).count
 $counter = 0
 $time = @()
 <#############################
     Requires a file called All_Systems.txt.  This file will provide the Cluster Name, IP address, Location, and Environment for each cluster on the network. 
     The format of the file requires a comma between each value.  
 #############################>
-foreach ($cluster in Get-Content "$($PSScriptRoot)\All_Systems.txt" | ? {$_ -ne ""}){
+foreach ($cluster in Get-Content "$($PSScriptRoot)\All_Systems.txt" | Where-Object {$_ -ne ""}){
     $counter++
     #Split the line by commas.  This provides the following information:
     # 0 - Cluster Name
@@ -70,7 +70,7 @@ foreach ($cluster in Get-Content "$($PSScriptRoot)\All_Systems.txt" | ? {$_ -ne 
     $items += $classification
     Write-Host "Collecting data from Cluster $($counter) of $($total) [$($items[0])]"
     # Gathers Cluster Data and exports an XML file for later use.
-    $measure = Measure-Command { Get-NtapClusterData -Name $items[1] -Credential $cred | Export-Clixml -Path "$($folder)\$($items[0])_raw.xml"}
+    $measure = Measure-Command { Get-NtapClusterData -Name $items[1] -Credential $mycred | Export-Clixml -Path "$($folder)\$($items[0])_raw.xml"}
     $customobject = New-Object psobject
     $customobject | Add-Member -MemberType NoteProperty -Name Cluster -Value $items[0]
     $customobject | Add-Member -MemberType NoteProperty -Name Process -Value "Collection"
@@ -91,7 +91,7 @@ foreach ($cluster in Get-Content "$($PSScriptRoot)\All_Systems.txt" | ? {$_ -ne 
     $time += $customobject
 
     #Create a report to show the differences between two reports
-    $diff = Get-ChildItem -path $PSScriptRoot -Recurse -Filter "$($items[0])_formatted.xml" | Sort-Object -Property LastWriteTime -Descending | select -First 2
+    $diff = Get-ChildItem -path $PSScriptRoot -Recurse -Filter "$($items[0])_formatted.xml" | Sort-Object -Property LastWriteTime -Descending | Select-Object -First 2
     Compare-NtapDocsData -XmlFile1 $diff[0].PSPath -XmlFile2 $diff[1].PSPath | Out-NtapDocument -ExcelFile "$($folder)\$($items[0])_diff.xlsx" -CustomerName "NGA" -CustomerLocation "NCE" -ProjectName "Difference Report" -AuthorName "Matt Tennyson"
 }
 Write-Host "Creating Complete System Report..."
@@ -107,7 +107,7 @@ $time += $customobject
 
 #Create a report to show the differences between the two All Systems reports
 Write-Host "Creating Diff Report for All Systems..."
-$diff = Get-ChildItem -path $PSScriptRoot -Recurse -Filter "All_Systems_formatted.xml" | Sort-Object -Property LastWriteTime -Descending | select -First 2
+$diff = Get-ChildItem -path $PSScriptRoot -Recurse -Filter "All_Systems_formatted.xml" | Sort-Object -Property LastWriteTime -Descending | Select-Object -First 2
 Compare-NtapDocsData -XmlFile1 $diff[0].PSPath -XmlFile2 $diff[1].PSPath | Out-NtapDocument -ExcelFile "$($folder)\All_Systems_diff.xlsx" -CustomerName "NGA" -CustomerLocation "NCE" -ProjectName "Difference Report" -AuthorName "Matt Tennyson"
 
 Write-Host "Creating Complete Sanitized System Report..."
